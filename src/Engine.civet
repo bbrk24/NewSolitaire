@@ -93,10 +93,10 @@ export default class Engine
       false
   
   moveTableauToTableau(fromIdx: number, cardIdx: number, toIdx: number)
-    return false if #revealedCard
-    return false if fromIdx is toIdx
+    return false if #revealedCard?
     fromPile := #board.tableau[fromIdx]
     toPile := #board.tableau[toIdx]
+    return false if fromPile is toPile
     return false unless fromPile? and toPile? and 0 <= cardIdx < fromPile#
 
     compare := (i: number, diff: number) =>
@@ -104,8 +104,7 @@ export default class Engine
         fromPile[i].value is Value.Joker
         fromPile[i - diff].value is Value.Joker
         (and)
-          (console.log(fromPile[i - diff]), true)
-          (fromPile[i].color is fromPile[i - diff].color) is (i % 2 is 0)
+          (fromPile[i].color is fromPile[i - diff].color) is (diff % 2 is 0)
           fromPile[i].value is fromPile[i - diff].value - diff
 
     // Probably not the most efficient way to compute this, but good enough
