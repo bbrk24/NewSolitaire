@@ -17,6 +17,7 @@ CardLocation ::=
   | ['foundation', 'asc' | 'desc', 0 | 1]
   | ['revealed']
 
+// Workaround for https://github.com/DanielXMoore/Civet/issues/1230
 Object.defineProperty HTMLElement::, 'parentNode_', get: -> @parentNode
 
 findLocation := (el: HTMLElement): CardLocation ->
@@ -26,7 +27,7 @@ findLocation := (el: HTMLElement): CardLocation ->
     { parentNode: { parentNode_: ^foundation, id }, dataset: { idx } }
       ['foundation', id as 'asc' | 'desc', Number(idx) as 0 | 1] 
     { parentNode: ^tableau, dataset: { idx } }
-      ['tableau', Number(idx) as any, Array::indexOf.call(el.parentNode!.children, el)]
+      ['tableau', Number(idx) as any, Array::indexOf.call el.parentNode!.children, el]
     else
       ['revealed']
 
@@ -132,3 +133,5 @@ deck.addEventListener 'click', ->
       card.classList.add 'selected'
 
 reset()
+document.getElementById('new-game')!
+  .addEventListener 'click', reset
