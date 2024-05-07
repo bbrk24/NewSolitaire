@@ -23,11 +23,21 @@
 }
 
 .place:empty {
-    background-color: brown;
+    background-color: #963b;
     /* yes, both are necessary */
     height: 3.375em;
     min-height: 3.375em;
     margin-bottom: 0.875em;
+}
+
+svg {
+    height: 3.375em;
+    padding: 0;
+    margin-bottom: -2em;
+    width: 2.25em;
+    border: 1px solid black;
+    border-radius: 0.25em;
+    box-shadow: 2px -3px 4px dimgray;
 }
 
 #foundation,
@@ -45,4 +55,8 @@
 .card,
 #deck {
     cursor: pointer;
+}
+
+#hand:empty {
+    background-color: transparent;
 }
