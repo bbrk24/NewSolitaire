@@ -1,0 +1,48 @@
+.card {
+    border: 1px solid black;
+    padding: 0.25em 0.25em 2em;
+    margin-bottom: -1.75em;
+    background-color: white;
+    width: 1.75em;
+    height: 1em;
+    border-radius: 0.25em;
+    box-shadow: 2px -3px 4px dimgray;
+}
+
+.selected {
+    box-shadow: 0 0 3px 2px #ffe800;
+}
+
+.place {
+    padding-bottom: 2.5em;
+    min-height: 4.25em;
+    box-sizing: border-box;
+    margin-right: 0.5em;
+    width: 2.25em;
+    border-radius: 0.25em;
+}
+
+.place:empty {
+    background-color: brown;
+    /* yes, both are necessary */
+    height: 3.375em;
+    min-height: 3.375em;
+    margin-bottom: 0.875em;
+}
+
+#foundation,
+#tableau {
+    display: flex;
+    flex-direction: row;
+}
+
+#foundation {
+    margin-left: 2.75em;
+}
+
+#foundation > div > div,
+#tableau > div,
+.card,
+#deck {
+    cursor: pointer;
+}

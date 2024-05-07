@@ -1,0 +1,134 @@
+'civet coffeePrototype'
+
+declare var points: HTMLSpanElement
+declare var foundation: HTMLDivElement
+declare var asc: HTMLDivElement
+declare var desc: HTMLDivElement
+declare var tableau: HTMLDivElement
+declare var hand: HTMLDivElement
+declare var deck: HTMLDivElement
+
+Engine from ./Engine.civet
+{ Card } from ./Card.civet
+
+CardLocation ::=
+  | ['hand', 0 | 1 | 2]
+  | ['tableau', 0 | 1 | 2 | 3, number]
+  | ['foundation', 'asc' | 'desc', 0 | 1]
+  | ['revealed']
+
+Object.defineProperty HTMLElement::, 'parentNode_', get: -> @parentNode
+
+findLocation := (el: HTMLElement): CardLocation ->
+  switch el.parentNode
+    ^hand
+      ['hand', Array::indexOf.call(hand.children, el) as any]
+    { parentNode: { parentNode_: ^foundation, id }, dataset: { idx } }
+      ['foundation', id as 'asc' | 'desc', Number(idx) as 0 | 1] 
+    { parentNode: ^tableau, dataset: { idx } }
+      ['tableau', Number(idx) as any, Array::indexOf.call(el.parentNode!.children, el)]
+    else
+      ['revealed']
+
+let highlightedCard?: HTMLElement
+unHighlight := =>
+  highlightedCard?.classList.remove 'selected'
+  highlightedCard = undefined
+
+let engine: Engine
+
+moveTo := (dest: CardLocation): void =>
+  return unless highlightedCard?
+  src := findLocation highlightedCard
+  switch [src.0, dest.0]
+    ['foundation', _]
+      unHighlight() // can't be moved
+    [_, 'hand'], [_, 'revealed']
+      // do nothing -- invalid destination
+    ['revealed', 'tableau']
+      if dest.1 is engine.tableauIndex
+        if engine.moveRevealedToTableau()
+          unHighlight()
+          updateRender()
+    ['revealed', 'foundation']
+      if engine.moveRevealedToFoundation dest.1 as 'asc' | 'desc', dest.2 as number
+        unHighlight()
+        updateRender()
+    ['hand', 'tableau']
+      if engine.moveHandToTableau src.1 as number, dest.1 as number
+        unHighlight()
+        updateRender()
+    ['hand', 'foundation']
+      if engine.moveHandToFoundation src.1 as number, dest.1 as 'asc' | 'desc', dest.2 as number
+        unHighlight()
+        updateRender()
+    ['tableau', 'foundation']
+      if src.2 is engine.board.tableau[src.1 as number]# - 1
+        if engine.moveTableauToFoundation src.1 as number, dest.1 as 'asc' | 'desc', dest.2 as number
+          unHighlight()
+          updateRender()
+    ['tableau', 'tableau']
+      if engine.moveTableauToTableau src.1 as number, src.2 as number, dest.1 as number
+        unHighlight()
+        updateRender()
+
+updateRender := :void =>
+  points.textContent = String engine.points
+  for each child, i of asc.children
+    child.innerHTML = ''
+    child.appendChild card.html if card? := engine.board.foundation.asc[i].at -1
+  for each child, i of desc.children
+    child.innerHTML = ''
+    child.appendChild card.html if card? := engine.board.foundation.desc[i].at -1
+  for each child, i of tableau.children
+    child.innerHTML = ''
+    child.append ...engine.board.tableau[i].map .html
+  hand.innerHTML = ''
+  hand.append ...engine.board.hand.map .html
+  deck.innerHTML = ''
+  deck.style.marginLeft = `${engine.tableauIndex * 2.75}em`
+  if engine.revealedCard?
+    deck.appendChild engine.revealedCard.html
+  else
+    if engine.board.deckSize > 0
+      deck.classList.add 'place'
+    else
+      deck.classList.remove 'place'
+    
+
+// @ts-ignore
+window.updateRender = updateRender
+
+reset := =>
+  unHighlight()
+  points.textContent = '0'
+  engine = new Engine
+  Card.allHTMLs.forEach .addEventListener 'click', (e) ->
+    e.stopPropagation()
+    if @ is highlightedCard
+      unHighlight()
+    else if highlightedCard?
+      moveTo findLocation @
+    else
+      highlightedCard = @
+      @classList.add 'selected'
+
+  // @ts-ignore
+  window.engine = engine
+
+  updateRender()
+
+for each child, i of asc.children
+  child.addEventListener 'click', -> moveTo ['foundation', 'asc', i as 0 | 1]
+for each child, i of desc.children
+  child.addEventListener 'click', -> moveTo ['foundation', 'desc', i as 0 | 1]
+for each child, i of tableau.children
+  child.addEventListener 'click', -> moveTo ['tableau', i as any, -1]
+deck.addEventListener 'click', ->
+  if not highlightedCard? and engine.revealCard()
+    updateRender()
+    if card := deck.querySelector('.card')
+      highlightedCard = card as HTMLElement
+      card.classList.add 'selected'
+
+reset()

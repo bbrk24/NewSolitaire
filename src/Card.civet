@@ -1,0 +1,57 @@
+WeakArray from ./WeakArray.civet
+
+export enum Value
+  Joker = -1
+  Ace = 1
+  Two, Three, Four, Five, Six, Seven, Eight, Nine, Ten
+  Jack, Queen, King
+
+export enum Suit
+  Hearts = '&hearts;'
+  Diamonds = '&diams;'
+  Spades = '&spades;'
+  Clubs = '&clubs;'
+
+export class Card
+  html: HTMLElement
+
+  @allHTMLs: WeakArray<HTMLElement> = new WeakArray
+
+  @(readonly value: Value, readonly suit: Suit)
+    @html = document.createElement 'div'
+      ||> .className = 'card'
+      ||> .style.color = @color
+      ||> .innerHTML = @toString()
+    Card.allHTMLs.push @html
+
+  get color
+    switch @suit
+      when Suit.Hearts, Suit.Diamonds
+        'red'
+      when Suit.Spades, Suit.Clubs
+        'black'
+
+  toString()
+    if @value is Value.Joker
+      return '&starf;'
+    (switch @value
+      when Value.Ace
+        'A'
+      when Value.King
+        'K'
+      when Value.Queen
+        'Q'
+      when Value.Jack
+        'J'
+      else
+        @value.toString()
+    ) + @suit
+
+export genDeck := =>
+  generator := :Generator<Card, void> ->
+    for _, suit in Suit as Record<string, Suit>
+      for value of [Value.Ace..Value.King]
+        yield new Card value, suit
+    yield new Card Value.Joker, Suit.Hearts
+    yield new Card Value.Joker, Suit.Spades
+  return Array.from generator()

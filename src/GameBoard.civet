@@ -1,0 +1,33 @@
+{ genDeck, type Card } from ./Card.civet
+fisherYatesShuffle from ./fisherYatesShuffle.civet
+
+export interface ReadonlyBoard
+    readonly hand: readonly Card[]
+    readonly tableau: readonly [readonly Card[], readonly Card[], readonly Card[], readonly Card[]] 
+    readonly foundation: {
+        readonly asc: readonly [readonly Card[], readonly Card[]],
+        readonly desc: readonly [readonly Card[], readonly Card[]]
+    }
+    get deckSize(): number
+
+export default class GameBoard <: ReadonlyBoard
+    #deck: Card[]
+    hand: Card[]
+    tableau: [Card[], Card[], Card[], Card[]] = [[], [], [], []]
+    foundation: { asc: [Card[], Card[]], desc: [Card[], Card[]] } =
+        asc: [[], []]
+        desc: [[], []]
+
+    @()
+        #deck = fisherYatesShuffle genDeck()
+        @hand = [@draw()!, @draw()!, @draw()!]
+
+    draw()
+        #deck.pop()
+    
+    get deckSize
+        #deck#
+    
+    shuffleIn(...cards: Card[]): void
+        #deck ++= cards
+        fisherYatesShuffle #deck

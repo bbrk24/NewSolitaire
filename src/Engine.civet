@@ -1,0 +1,163 @@
+GameBoard, { type ReadonlyBoard } from ./GameBoard.civet
+{ Value, type Card } from ./Card.civet
+
+export default class Engine
+  #board = new GameBoard
+  #tableauIndex = 0
+  #revealedCard: Card?
+  #points = 0
+
+  get #tableauIndex
+  get #revealedCard
+  get #points
+  
+  get board(): ReadonlyBoard
+    #board
+
+  hasWon() #points is 4
+
+  moveRevealedToTableau()
+    return false unless #revealedCard?
+    #board.tableau[#tableauIndex].push #revealedCard
+    #tableauIndex |>= (& + 1) % 4
+    #revealedCard = undefined
+    return true
+  
+  revealCard()
+    return false if #revealedCard?
+    #revealedCard = #board.draw()
+    #revealedCard?
+
+  #moveToFoundation(direction: 'asc' | 'desc', index: number, card: Card)
+    return false unless #board.foundation.hasOwnProperty(direction) and index in #board.foundation[direction]
+    pile := #board.foundation[direction][index]
+    expectedValue: Value :=
+      if direction is 'asc'
+        pile# + Value.Ace
+      else
+        Value.King - pile#
+    return false unless card.value is in [Value.Joker, expectedValue]
+    pile.push card
+    if other? := #board.foundation[direction is 'asc' ? 'desc' : 'asc'].find ($) => $# + pile# is 13
+      ++#points
+      jokers := (pile ++ other).filter .value is Value.Joker
+      if jokers# then #board.shuffleIn ...jokers
+      pile# = other# = 0
+    true
+
+  moveRevealedToFoundation(direction: 'asc' | 'desc', index: number)
+    return false unless #revealedCard?
+    return false if #revealedCard.value is Value.Joker
+    if #moveToFoundation direction, index, #revealedCard
+      #revealedCard = undefined
+      true
+    else
+      false
+  
+  moveHandToFoundation(handIndex: number, direction: 'asc' | 'desc', foundationIndex: number)
+    return false if #revealedCard?
+    handCard := #board.hand[handIndex]
+    return false unless handCard?
+    if #moveToFoundation direction, foundationIndex, handCard
+      #board.hand.splice handIndex, 1
+      unless @hasWon()
+        #board.hand.push next if next? := #board.draw()
+      true
+    else
+      false
+  
+  moveTableauToFoundation(tableauIndex: number, direction: 'asc' | 'desc', foundationIndex: number)
+    return false if #revealedCard?
+    tableauPile := #board.tableau[tableauIndex]
+    return false unless tableauPile?#
+    if #moveToFoundation direction, foundationIndex, tableauPile.-1
+      tableauPile.pop()
+      true
+    else
+      false
+  
+  moveHandToTableau(handIndex: number, tableauIndex: number)
+    return false if #revealedCard?
+    return false unless #board.deckSize is 0 and handIndex in #board.hand and tableauIndex in #board.tableau
+
+    handCard := #board.hand[handIndex]
+    expectedValue := handCard.value + 1
+    tableauPile := #board.tableau[tableauIndex]
+    skip := handCard.value is Value.Joker or tableauPile.-1.value is Value.Joker
+
+    if skip or (tableauPile.-1.value is expectedValue and tableauPile.-1.color !== handCard.color)
+      tableauPile.push handCard
+      #board.hand.splice handIndex, 1
+      true
+    else
+      false
+  
+  moveTableauToTableau(fromIdx: number, cardIdx: number, toIdx: number)
+    return false if #revealedCard
+    return false if fromIdx is toIdx
+    fromPile := #board.tableau[fromIdx]
+    toPile := #board.tableau[toIdx]
+    return false unless fromPile? and toPile? and 0 <= cardIdx < fromPile#
+
+    compare := (i: number, diff: number) =>
+      (or)
+        fromPile[i].value is Value.Joker
+        fromPile[i - diff].value is Value.Joker
+        (and)
+          (console.log(fromPile[i - diff]), true)
+          (fromPile[i].color is fromPile[i - diff].color) is (i % 2 is 0)
+          fromPile[i].value is fromPile[i - diff].value - diff
+
+    // Probably not the most efficient way to compute this, but good enough
+    canMove := false is not in for let i = 1; i + cardIdx < fromPile#; ++i
+      (and)
+        // check up to 3 apart in case there are mid-run jokers
+        compare cardIdx + i, 1
+        i >= 2 ? compare cardIdx + i, 2 : true
+        i >= 3 ? compare cardIdx + i, 3 : true
+    
+    return false unless canMove
+
+    effectiveValue: Value := fromPile[cardIdx...]
+      .findIndex .value !== Value.Joker
+      |> do (&: number) < 0 ? Value.Joker : fromPile[cardIdx + &].value + &
+
+    effectiveColor := fromPile[cardIdx...]
+      .findIndex .value !== Value.Joker
+      |> (idx: number) =>
+        if idx < 0 then 'any'
+        else if idx % 2 is 0 then fromPile[cardIdx + idx].color
+        else fromPile[cardIdx + idx].color is 'red' ? 'black' : 'red'
+
+    destOkay := (or)
+      effectiveValue is Value.Joker
+      toPile# is 0 and effectiveValue is Value.King
+      toPile.-1.value is Value.Joker
+      (and)
+        toPile.-1.value is effectiveValue + 1
+        effectiveColor !== toPile.-1.color
+    
+    return false unless destOkay
+
+    toPile ++= fromPile.splice cardIdx
+    true
+
+  toString()
+    padCard := (c: Card?) => if c? then `[${c.toString().padEnd(10, ' ')}]` else '            '
+    padNum := (n: number) => n.toString().padStart(2, '0')
+
+    tableauArr := for i of [0 ... Math.max ...#board.tableau.map &#]
+      #board.tableau
+        .map padCard .[i]
+        .join ' '
+    tableauStr := tableauArr.join '\n'
+
+
+    ```
+    ${#points} pts.
+    ${padNum #board.foundation.asc.0#} ${padCard #board.foundation.asc.0.-1} ${padCard #board.foundation.desc.0.-1} ${padNum #board.foundation.desc.0#}
+    ${padNum #board.foundation.asc.1#} ${padCard #board.foundation.asc.1.-1} ${padCard #board.foundation.desc.1.-1} ${padNum #board.foundation.desc.1#}
+    ${tableauStr}
+    Hand: ${#board.hand.map(padCard).join ' '}
+    Deck: ${#board.deckSize} ${padCard #revealedCard}
+    ```.trimEnd()
