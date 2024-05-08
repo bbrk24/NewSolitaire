@@ -81,11 +81,10 @@ export default class Engine
     return false unless #board.deckSize is 0 and handIndex in #board.hand and tableauIndex in #board.tableau
 
     handCard := #board.hand[handIndex]
-    expectedValue := handCard.value + 1
     tableauPile := #board.tableau[tableauIndex]
-    skip := handCard.value is Value.Joker or tableauPile.-1.value is Value.Joker
+    skip := handCard.value is Value.Joker or tableauPile# is 0 or tableauPile.-1.value is Value.Joker
 
-    if skip or (tableauPile.-1.value is expectedValue and tableauPile.-1.color !== handCard.color)
+    if skip or (Math.abs(tableauPile.-1.value - handCard.value) is 1 and tableauPile.-1.color !== handCard.color)
       tableauPile.push handCard
       #board.hand.splice handIndex, 1
       true
@@ -105,7 +104,7 @@ export default class Engine
         fromPile[i - diff].value is Value.Joker
         (and)
           (fromPile[i].color is fromPile[i - diff].color) is (diff % 2 is 0)
-          fromPile[i].value is fromPile[i - diff].value - diff
+          Math.abs(fromPile[i].value - fromPile[i - diff].value) is diff
 
     // Probably not the most efficient way to compute this, but good enough
     canMove := false is not in for let i = 1; i + cardIdx < fromPile#; ++i
@@ -117,9 +116,14 @@ export default class Engine
     
     return false unless canMove
 
-    effectiveValue: Value := fromPile[cardIdx...]
-      .findIndex .value !== Value.Joker
-      |> do (&: number) < 0 ? Value.Joker : fromPile[cardIdx + &].value + &
+    nonJokers := fromPile[cardIdx...]
+      .map (el, i) => el.value is Value.Joker ? null : [el, i]
+      .filter (el): el is [Card, number] => el?
+    expectedValues: Value[] .= []
+    if nonJokers# > 1 ? nonJokers.1.0.value > nonJokers.0.0.value : nonJokers# >= 1
+      expectedValues.push nonJokers.0.0.value - nonJokers.0.1 - 1
+    if nonJokers# > 1 ? nonJokers.1.0.value > nonJokers.0.0.value : nonJokers# >= 1
+      expectedValues.push nonJokers.0.0.value + nonJokers.0.1 + 1
 
     effectiveColor := fromPile[cardIdx...]
       .findIndex .value !== Value.Joker
@@ -129,12 +133,11 @@ export default class Engine
         else fromPile[cardIdx + idx].color is 'red' ? 'black' : 'red'
 
     destOkay := (or)
-      effectiveValue is Value.Joker
-      toPile# is 0 and effectiveValue is Value.King
-      toPile.-1.value is Value.Joker
+      toPile# is 0 ? fromPile# - cardIdx >= 3 : expectedValues# is 0
+      toPile.-1?.value is Value.Joker
       (and)
-        toPile.-1.value is effectiveValue + 1
-        effectiveColor !== toPile.-1.color
+        toPile.-1?.value is in expectedValues
+        effectiveColor !== toPile.-1?.color
     
     return false unless destOkay
 
