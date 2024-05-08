@@ -1,5 +1,3 @@
-WeakArray from ./WeakArray.civet
-
 export enum Value
   Joker = -1
   Ace = 1
@@ -13,16 +11,25 @@ export enum Suit
   Clubs = '&clubs;'
 
 export class Card
-  html: HTMLElement
+  @#htmlMap = new Map<Value, Map<Suit, HTMLElement>>
+    for value of [Value.Joker] ++ [Value.Ace..Value.King]
+      [value, new Map] as tuple
 
-  @allHTMLs: WeakArray<HTMLElement> = new WeakArray
+  get html()
+    Card.#htmlMap.get(@value)!.get(@suit)!
+
+  @get allHTMLs(): readonly HTMLElement[]
+    Array.from #htmlMap.values(), [...&.values()]
+      .flat()
 
   @(readonly value: Value, readonly suit: Suit)
-    @html = document.createElement 'div'
-      ||> .className = 'card'
-      ||> .style.color = @color
-      ||> .innerHTML = @toString()
-    Card.allHTMLs.push @html
+    unless @html?
+      html := document.createElement 'div'
+        ||> .className = 'card'
+        ||> .style.color = @color
+        ||> .innerHTML = @toString()
+      Card.#htmlMap.get(value)!.set suit, html
+
 
   get color
     switch @suit
