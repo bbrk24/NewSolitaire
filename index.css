@@ -7,6 +7,9 @@
     height: 1em;
     border-radius: 0.25em;
     box-shadow: 2px -3px 4px dimgray;
+
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .selected {
@@ -23,7 +26,7 @@
 }
 
 .place:empty {
-    background-color: #963b;
+    border: 1px solid gray;
     /* yes, both are necessary */
     height: 3.375em;
     min-height: 3.375em;
@@ -58,5 +61,5 @@ svg {
 }
 
 #hand:empty {
-    background-color: transparent;
+    border: none;
 }
