@@ -8,7 +8,7 @@ declare var tableau: HTMLDivElement
 declare var hand: HTMLDivElement
 declare var deck: HTMLDivElement
 
-Engine from ./Engine.civet
+Engine, { type EngineJSON } from ./Engine.civet
 { Card } from ./Card.civet
 
 CardLocation ::=
@@ -17,14 +17,13 @@ CardLocation ::=
   | ['foundation', 'asc' | 'desc', 0 | 1]
   | ['revealed']
 
-// Workaround for https://github.com/DanielXMoore/Civet/issues/1230
-Object.defineProperty HTMLElement::, 'parentNode_', get: -> @parentNode
+history: EngineJSON[] .= []
 
 findLocation := (el: HTMLElement): CardLocation ->
   switch el.parentNode
     ^hand
       ['hand', Array::indexOf.call(hand.children, el) as any]
-    { parentNode: { parentNode_: ^foundation, id }, dataset: { idx } }
+    { parentNode: { parentNode: ^foundation, id }, dataset: { idx } }
       ['foundation', id as 'asc' | 'desc', Number(idx) as 0 | 1] 
     { parentNode: ^tableau, dataset: { idx } }
       ['tableau', Number(idx) as any, Array::indexOf.call el.parentNode!.children, el]
@@ -37,6 +36,7 @@ unHighlight := =>
   highlightedCard = undefined
 
 let engine: Engine
+Object.defineProperty window, 'engine', get: => engine
 
 moveTo := (dest: CardLocation): void =>
   return unless highlightedCard?
@@ -69,11 +69,15 @@ moveTo := (dest: CardLocation): void =>
           unHighlight()
           updateRender()
     ['tableau', 'tableau']
-      if engine.moveTableauToTableau src.1 as number, src.2 as number, dest.1 as number
+      if src.1 is dest.1
+        // re-selecting the same column
+        unHighlight()
+      else if engine.moveTableauToTableau src.1 as number, src.2 as number, dest.1 as number
         unHighlight()
         updateRender()
 
-updateRender := :void =>
+updateRender := (addHistory = true): void =>
+  history.push engine.toJSON() if addHistory
   points.textContent = String engine.points
   for each child, i of asc.children
     child.innerHTML = ''
@@ -106,12 +110,16 @@ window.updateRender = updateRender
 reset := =>
   unHighlight()
   points.textContent = '0'
-
   engine = new Engine
-  // @ts-ignore
-  window.engine = engine
-
+  history = []
   updateRender()
+
+document.getElementById('undo')!
+  .addEventListener 'click', :void =>
+    if history# >= 2
+      history.pop() // discard current state
+      engine = Engine.fromJSON history.-1
+      updateRender false
 
 for each child, i of asc.children
   child.addEventListener 'click', -> moveTo ['foundation', 'asc', i as 0 | 1]
@@ -122,7 +130,7 @@ for each child, i of tableau.children
 deck.addEventListener 'click', ->
   if not highlightedCard? and engine.revealCard()
     updateRender()
-    if card := deck.querySelector('.card')
+    if card? := deck.querySelector('.card')
       highlightedCard = card as HTMLElement
       card.classList.add 'selected'
 

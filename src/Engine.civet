@@ -1,11 +1,23 @@
-GameBoard, { type ReadonlyBoard } from ./GameBoard.civet
-{ Value, type Card } from ./Card.civet
+GameBoard, { type ReadonlyBoard, type BoardJSON } from ./GameBoard.civet
+{ Value, Card, type CardLike } from ./Card.civet
+
+export interface EngineJSON
+  board: BoardJSON
+  tableauIndex: number
+  points: number
+  revealedCard?: CardLike
+
+skipInit := Symbol 'skipInit'
 
 export default class Engine
-  #board = new GameBoard
+  #board!: GameBoard
   #tableauIndex = 0
   #revealedCard: Card?
   #points = 0
+
+  @(command?: Symbol)
+    unless command is skipInit
+      #board = new GameBoard
 
   get #tableauIndex
   get #revealedCard
@@ -13,6 +25,14 @@ export default class Engine
   
   get board(): ReadonlyBoard
     #board
+
+  @fromJSON(json: EngineJSON)
+    obj := new @ skipInit
+    obj.#board = GameBoard.fromJSON json.board
+    obj.#revealedCard = Card.fromJSON card if card? := json.revealedCard
+    obj.#points = json.points
+    obj.#tableauIndex = json.tableauIndex
+    obj
 
   hasWon() #points is 4
 
@@ -38,7 +58,7 @@ export default class Engine
         Value.King - pile#
     return false unless card.value is in [Value.Joker, expectedValue]
     pile.push card
-    if other? := #board.foundation[direction is 'asc' ? 'desc' : 'asc'].find ($) => $# + pile# is 13
+    if other? := #board.foundation[direction is 'asc' ? 'desc' : 'asc'].find &# + pile# is 13
       ++#points
       jokers := (pile ++ other).filter .value is Value.Joker
       if jokers# then #board.shuffleIn ...jokers
@@ -163,3 +183,6 @@ export default class Engine
     Hand: ${#board.hand.map(padCard).join ' '}
     Deck: ${#board.deckSize} ${padCard #revealedCard}
     ```.trimEnd()
+
+  toJSON(): EngineJSON
+    { @tableauIndex, @revealedCard, @points, board: #board.toJSON() }

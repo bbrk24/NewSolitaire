@@ -1,33 +1,61 @@
-{ genDeck, type Card } from ./Card.civet
+{ genDeck, Card, type CardLike } from ./Card.civet
 fisherYatesShuffle from ./fisherYatesShuffle.civet
 
 export interface ReadonlyBoard
-    readonly hand: readonly Card[]
-    readonly tableau: readonly [readonly Card[], readonly Card[], readonly Card[], readonly Card[]] 
-    readonly foundation: {
-        readonly asc: readonly [readonly Card[], readonly Card[]],
-        readonly desc: readonly [readonly Card[], readonly Card[]]
-    }
-    get deckSize(): number
+  readonly hand: readonly Card[]
+  readonly tableau: readonly [readonly Card[], readonly Card[], readonly Card[], readonly Card[]] 
+  readonly foundation: {
+    readonly asc: readonly [readonly Card[], readonly Card[]],
+    readonly desc: readonly [readonly Card[], readonly Card[]]
+  }
+  get deckSize(): number
+
+export interface BoardJSON
+  hand: readonly CardLike[]
+  tableau: readonly [readonly CardLike[], readonly CardLike[], readonly CardLike[], readonly CardLike[]] 
+  foundation: {
+    readonly asc: readonly [readonly CardLike[], readonly CardLike[]],
+    readonly desc: readonly [readonly CardLike[], readonly CardLike[]]
+  }
+  deck: readonly CardLike[]
+
+skipInit := Symbol 'skipInit'
 
 export default class GameBoard <: ReadonlyBoard
-    #deck: Card[]
-    hand: Card[]
-    tableau: [Card[], Card[], Card[], Card[]] = [[], [], [], []]
-    foundation: { asc: [Card[], Card[]], desc: [Card[], Card[]] } =
-        asc: [[], []]
-        desc: [[], []]
+  #deck!: Card[]
+  hand!: Card[]
+  tableau: [Card[], Card[], Card[], Card[]] = [[], [], [], []]
+  foundation: { asc: [Card[], Card[]], desc: [Card[], Card[]] } =
+    asc: [[], []]
+    desc: [[], []]
 
-    @()
-        #deck = fisherYatesShuffle genDeck()
-        @hand = [@draw()!, @draw()!, @draw()!]
+  @(command?: Symbol)
+    unless command is skipInit
+      #deck = fisherYatesShuffle genDeck()
+      @hand = [@draw()!, @draw()!, @draw()!]
 
-    draw()
-        #deck.pop()
-    
-    get deckSize
-        #deck#
-    
-    shuffleIn(...cards: Card[]): void
-        #deck ++= cards
-        fisherYatesShuffle #deck
+  @fromJSON(json: BoardJSON)
+    obj := new @ skipInit
+    obj.hand = json.hand.map Card.fromJSON .
+    obj.#deck = json.deck.map Card.fromJSON .
+    // @ts-expect-error mapping tuples
+    obj.tableau = json.tableau.map .map Card.fromJSON .
+    obj.foundation =
+      // @ts-expect-error mapping tuples
+      asc: json.foundation.asc.map .map Card.fromJSON .
+      // @ts-expect-error mapping tuples
+      desc: json.foundation.desc.map .map Card.fromJSON .
+    obj
+
+  draw()
+    #deck.pop()
+
+  get deckSize
+    #deck#
+
+  shuffleIn(...cards: Card[]): void
+    #deck ++= cards
+    fisherYatesShuffle #deck
+
+  toJSON(): BoardJSON
+    structuredClone { ...@, #deck }

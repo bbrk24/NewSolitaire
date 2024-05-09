@@ -10,7 +10,11 @@ export enum Suit
   Spades = '&spades;'
   Clubs = '&clubs;'
 
-export class Card
+export interface CardLike
+  readonly suit: Suit
+  readonly value: Value
+
+export class Card <: CardLike
   @#htmlMap = new Map<Value, Map<Suit, HTMLElement>>
     for value of [Value.Joker] ++ [Value.Ace..Value.King]
       [value, new Map] as tuple
@@ -30,6 +34,9 @@ export class Card
         ||> .innerHTML = @toString()
       Card.#htmlMap.get(value)!.set suit, html
 
+  @fromJSON(obj: CardLike)
+    return obj if obj <? @
+    return new @ obj.value, obj.suit
 
   get color
     switch @suit
