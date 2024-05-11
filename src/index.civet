@@ -7,6 +7,8 @@ declare var desc: HTMLDivElement
 declare var tableau: HTMLDivElement
 declare var hand: HTMLDivElement
 declare var deck: HTMLDivElement
+declare var winspan: HTMLSpanElement
+declare var lossspan: HTMLSpanElement
 
 Engine, { type EngineJSON } from ./Engine.civet
 { Card } from ./Card.civet
@@ -18,6 +20,9 @@ CardLocation ::=
   | ['revealed']
 
 history: EngineJSON[] .= []
+
+wins .= if str? := localStorage.getItem 'winCount' then +str else 0
+losses .= if str? := localStorage.getItem 'lossCount' then +str else 0
 
 findLocation := (el: HTMLElement): CardLocation ->
   switch el.parentNode
@@ -76,6 +81,7 @@ moveTo := (dest: CardLocation): void =>
         unHighlight()
         updateRender()
 
+thisGameWon .= false
 updateRender := (addHistory = true, updateStorage = true): void =>
   history.push engine.toJSON() if addHistory
   if updateStorage
@@ -86,6 +92,12 @@ updateRender := (addHistory = true, updateStorage = true): void =>
       historyStr := JSON.stringify history
       if localStr !== historyStr
         localStorage.setItem 'gameHistory', historyStr
+  if !thisGameWon and engine.hasWon()
+    ++wins
+    thisGameWon = true
+    localStorage.setItem 'winCount', String wins
+  winspan.textContent = String wins
+  lossspan.textContent = String losses
   points.textContent = String engine.points
   for each child, i of asc.children
     child.innerHTML = ''
@@ -116,6 +128,10 @@ updateRender := (addHistory = true, updateStorage = true): void =>
 window.updateRender = updateRender
 
 reset := =>
+  unless thisGameWon
+    ++losses
+    localStorage.setItem 'lossCount', String losses
+  thisGameWon = false
   unHighlight()
   points.textContent = '0'
   engine = new Engine
