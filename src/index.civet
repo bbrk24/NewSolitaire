@@ -76,8 +76,16 @@ moveTo := (dest: CardLocation): void =>
         unHighlight()
         updateRender()
 
-updateRender := (addHistory = true): void =>
+updateRender := (addHistory = true, updateStorage = true): void =>
   history.push engine.toJSON() if addHistory
+  if updateStorage
+    localStr := localStorage.getItem 'gameHistory'
+    if engine.hasWon() and localStr
+      localStorage.removeItem 'gameHistory'
+    else
+      historyStr := JSON.stringify history
+      if localStr !== historyStr
+        localStorage.setItem 'gameHistory', historyStr
   points.textContent = String engine.points
   for each child, i of asc.children
     child.innerHTML = ''
@@ -100,7 +108,7 @@ updateRender := (addHistory = true): void =>
     // last attempt worked only on the first render and gave <svg></svg> every time afterwards
     deck.innerHTML =
       ```
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0,0,2.25em,3.375em" face="1B" height="3.5in" preserveAspectRatio="none" viewBox="-120 -168 240 336" width="2.5in"><defs><pattern id="B1" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M3 0L6 3L3 6L0 3Z" fill="black"></path></pattern></defs><rect width="239" height="335" x="-119.5" y="-167.5" rx="12" ry="12" fill="white" stroke="black"></rect><rect fill="url(#B1)" width="216" height="312" x="-108" y="-156" rx="12" ry="12"></rect></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 54" face="1B" height="3.5in" preserveAspectRatio="none" viewBox="-120 -168 240 336" width="2.5in"><defs><pattern id="B1" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M3 0L6 3L3 6L0 3Z" fill="black"></path></pattern></defs><rect width="239" height="335" x="-119.5" y="-167.5" rx="12" ry="12" fill="white" stroke="black"></rect><rect fill="url(#B1)" width="216" height="312" x="-108" y="-156" rx="12" ry="12"></rect></svg>
       ```
   else
     deck.classList.remove 'place'
@@ -115,26 +123,30 @@ reset := =>
   updateRender()
 
 document.getElementById('undo')!
-  .addEventListener 'click', :void =>
+  .addEventListener 'click', =>
+    unHighlight()
     if history# >= 2
       history.pop() // discard current state
       engine = Engine.fromJSON history.-1
       updateRender false
 
 for each child, i of asc.children
-  child.addEventListener 'click', -> moveTo ['foundation', 'asc', i as 0 | 1]
+  child.addEventListener 'click', => moveTo ['foundation', 'asc', i as 0 | 1]
 for each child, i of desc.children
-  child.addEventListener 'click', -> moveTo ['foundation', 'desc', i as 0 | 1]
+  child.addEventListener 'click', => moveTo ['foundation', 'desc', i as 0 | 1]
 for each child, i of tableau.children
-  child.addEventListener 'click', -> moveTo ['tableau', i as any, -1]
-deck.addEventListener 'click', ->
+  child.addEventListener 'click', => moveTo ['tableau', i as any, -1]
+deck.addEventListener 'click', =>
   if not highlightedCard? and engine.revealCard()
     updateRender()
-    if card? := deck.querySelector('.card')
+    if card? := deck.querySelector '.card'
       highlightedCard = card as HTMLElement
       card.classList.add 'selected'
 
-reset()
+history = JSON.parse localStorage.getItem('gameHistory') ?? '[]'
+engine = if json? := history.-1 then Engine.fromJSON json else new Engine
+updateRender false, false
+
 document.getElementById('new-game')!
   .addEventListener 'click', reset
 
