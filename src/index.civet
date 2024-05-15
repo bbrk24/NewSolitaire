@@ -69,8 +69,16 @@ moveTo := (dest: CardLocation): void =>
         unHighlight()
         updateRender()
     ['tableau', 'foundation']
-      if src.2 is engine.board.tableau[src.1 as number]# - 1
-        if engine.moveTableauToFoundation src.1 as number, dest.1 as 'asc' | 'desc', dest.2 as number
+      if src.2! >= 0
+        fail .= false
+        for i .= engine.board.tableau[src.1 as number]# - 1; i >= src.2!; --i
+          unless engine.moveTableauToFoundation src.1 as number, dest.1 as 'asc' | 'desc', dest.2 as number
+            fail = true
+            break
+        if fail
+          // May have made partial progress; restore from history
+          engine = Engine.fromJSON history.-1
+        else
           unHighlight()
           updateRender()
     ['tableau', 'tableau']
