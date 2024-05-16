@@ -27,7 +27,8 @@ export class Card <: CardLike
       .flat()
 
   @(readonly value: Value, readonly suit: Suit)
-    unless @html?
+    // Check document for usage in node scripts
+    if document !<? 'undefined' and not @html?
       html := document.createElement 'div'
         ||> .className = 'card'
         ||> .style.color = @color
