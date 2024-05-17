@@ -1,8 +1,8 @@
-// Use a simple AI to estimate how many games are winnable.
-// Current win rate: ~82%
+// Use an AI to estimate how many games are winnable.
+// Current win rate: ~91%
 
 { Value, type Card } from ./src/Card.civet
-Engine from ./src/Engine.civet
+Engine, { type EngineJSON } from ./src/Engine.civet
 type { ReadonlyBoard } from ./src/GameBoard.civet
 
 // Cartesian product
@@ -17,13 +17,19 @@ function main
   won .= 0
   total := 10000
   for [0...total]
-    ++won if new AI().canWin()
-  console.log `Win rate: ${100 * won / total}%`
+    ai := new AI
+    if ai.canWin()
+      ++won 
+    // else
+    //   console.log JSON.stringify ai.history
+    //   return
+  console.log `Win rate: ${100 * won / total}% (n = ${total})`
 
 // Make a function to rearrange the tableau in an attempt to expose the specified cards.
 makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value>) => (@: AI) ->
   { foundation, tableau } := @engine.board
   playableValues := new Set<Value> validCards foundation
+  alreadyOnTop .= false
   // find the indices of the pile with buried playable values
   tableauPileIdxs := tableau
     // Map to [index in tableau, pile itself, index of value in pile]
@@ -31,7 +37,10 @@ makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value
     // Remove those where the value doesn't exist
     .filter &.2 >= 0
     // Remap index in pile to depth
-    .map ([iT, el, i]) => [iT, el, el# - i] as tuple
+    .map ([iT, el, i]) => 
+      if el# - i is 1
+        alreadyOnTop = true
+      [iT, el, el# - i] as tuple
     // Sort by increasing depth of given card, breaking ties by decreasing depth of whole pile
     .sort ([, el1, i1], [, el2, i2]) =>
       iDiff := i1 - i2
@@ -39,20 +48,27 @@ makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value
       return el2# - el1#
     // Separate out just the indices
     .map ([i, el, d]) => [i, el# - d] as tuple
+  return false if alreadyOnTop
 
   // This may not be possible, so save the state
   oldState := @engine.toJSON()
 
   idxMap := new Map tableauPileIdxs
   // Try to avoid burying cards
-  // TODO: look out for cards that will be useful in the near-future
   sortCB := (a: number, b: number): number =>
     if idxMap.has(a) and idxMap.has(b)
       depthOf := (n: number) => @engine.board.tableau[n]# - idxMap.get(n)!
-      return depthOf(b) - depthOf(a)
-    if idxMap.has a
+      depthDiff := depthOf(b) - depthOf(a)
+      return depthDiff unless depthDiff is 0
+      // Find the shallowest card which differs in future utility
+      tabB := @engine.board.tableau[b]
+      tabA := @engine.board.tableau[a]
+      for i .= 0; i < tabB# and i < tabA#; ++i
+        utilDiff := @utilityDist(tabB.at(~i)!.value) - @utilityDist(tabA.at(~i)!.value)
+        return utilDiff unless utilDiff is 0
+    else if idxMap.has a
       return 1
-    if idxMap.has b
+    else if idxMap.has b
       return -1
     return @engine.board.tableau[a]# - @engine.board.tableau[b]#
 
@@ -77,6 +93,17 @@ makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value
 class AI
   engine = new Engine
 
+  history: EngineJSON[] = []
+
+  // How many moves it takes before the given value can be played
+  utilityDist(v: Value)
+    { foundation } := @engine.board
+    v is Value.Joker ? 0 : Math.min
+      (v - foundation.asc.0# - 1) %% 13
+      (v - foundation.asc.1# - 1) %% 13
+      (13 - v - foundation.desc.0#) %% 13
+      (13 - v - foundation.desc.1#) %% 13
+
   // Each entry in this array represents one type of move to attempt. The AI works by repeatedly performing the first
   // successful move until the game is won or no more moves can be performed.
   moveAttempts: ((@: AI) => boolean)[] = [
@@ -94,7 +121,13 @@ class AI
       filteredTableauIdxs := @engine.board.tableau
         .map (el, i) => [i, el] as tuple
         .filter ([, el]) => el# > 0
-        .sort ([, el1], [, el2]) => el2# - el1#
+        .sort ([, el1], [, el2]) =>
+          // By depth and by future utility of the card that will be revealed
+          if el1# < 2 or el2# < 2 or (el1# !== el2# and @engine.points < 3)
+            el2# - el1#
+          else
+            utilDiff := @utilityDist(el2.-2.value) - @utilityDist(el1.-2.value)
+            utilDiff is 0 ? el2# - el1# : utilDiff
         .map &.0
       for i of filteredTableauIdxs
         continue if @engine.board.tableau[i].-1.value is Value.Joker
@@ -119,8 +152,57 @@ class AI
       Value.King - foundation.desc.0#
       Value.King - foundation.desc.1#
     ]
-    // If there's an available joker in the tableau, play it
+    // Unless 3 points have already been scored, if there's an available joker in the tableau, play it
     ->
+      // If there's only one point left to score, it may be useful to reserve the jokers 
+      return false unless @engine.points < 3
+      for tblIdx of [0...4]
+        continue unless @engine.board.tableau[tblIdx].-1?.value is Value.Joker
+        // Play to the deepest foundation pile -- slightly increases win rate
+        founds := (['asc', 'desc'] as const x [0..1])
+          .sort (a, b) => @engine.board.foundation[b.0][b.1]# - @engine.board.foundation[a.0][a.1]#
+        return @engine.moveTableauToFoundation tblIdx, ...founds.0
+      return false
+    // Play a card from the hand onto the tableau
+    ->
+      return false unless @engine.board.deckSize is 0
+      tableauIdxs := @engine.board.tableau
+        .map (el, i) => [i, el] as tuple
+        .sort ([, el1], [, el2]) => el1# - el2#
+        .map &.0
+      handIdxs := @engine.board.hand
+        .map (el, i) => [i, el] as tuple
+        .sort ([, el1], [, el2]) => el1.value - el2.value
+        .map &.0
+      for tblIdx of tableauIdxs
+        for hndIdx of handIdxs
+          return true if @engine.moveHandToTableau hndIdx, tblIdx
+      return false
+    // If there's a joker in the hand and less than 3 points have been scored, play that
+    ->
+      return false if @engine.points >= 3
+      idx := @engine.board.hand.findIndex .value is Value.Joker
+      return false unless idx >= 0
+      // Play to the deepest foundation pile -- increases win rate
+      founds := (['asc', 'desc'] as const x [0..1])
+        .sort (a, b) => @engine.board.foundation[b.0][b.1]# - @engine.board.foundation[a.0][a.1]#
+      @engine.moveHandToFoundation idx, ...founds.0
+    // Uncover a buried joker in the tableau, if applicable
+    makeSearchFn => [Value.Joker]
+    // Reveal a card
+    -> @engine.revealCard()
+    // If there's a joker in the hand and at least 3 points have been scored, play that
+    ->
+      return false if @engine.points < 3
+      idx := @engine.board.hand.findIndex .value is Value.Joker
+      return false unless idx >= 0
+      // Play to the deepest foundation pile -- increases win rate
+      founds := (['asc', 'desc'] as const x [0..1])
+        .sort (a, b) => @engine.board.foundation[b.0][b.1]# - @engine.board.foundation[a.0][a.1]#
+      @engine.moveHandToFoundation idx, ...founds.0
+    // If 3 points have already been scored and there's an available joker in the tableau, play it
+    ->
+      return false if @engine.points < 3
       for tblIdx of [0...4]
         continue unless @engine.board.tableau[tblIdx].-1?.value is Value.Joker
         // Play to the shallowest foundation pile -- slightly increases win rate
@@ -128,36 +210,16 @@ class AI
           .sort (a, b) => @engine.board.foundation[b.0][b.1]# - @engine.board.foundation[a.0][a.1]#
         return @engine.moveTableauToFoundation tblIdx, ...founds.0
       return false
-    // If there's a joker in the hand, play that
-    ->
-      idx := @engine.board.hand.findIndex .value is Value.Joker
-      return false unless idx >= 0
-      // Play to the shallowest foundation pile -- increases win rate
-      founds := (['asc', 'desc'] as const x [0..1])
-        .sort (a, b) => @engine.board.foundation[b.0][b.1]# - @engine.board.foundation[a.0][a.1]#
-      @engine.moveHandToFoundation idx, ...founds.0
-    // Uncover a joker in the tableau, if applicable
-    makeSearchFn => [Value.Joker]
-    // Reveal a card
-    -> @engine.revealCard()
-    // If there are no other legal moves, play a card from the hand onto the tableau
-    ->
-      tableauIdxs := @engine.board.tableau
-        .map (el, i) => [i, el] as tuple
-        .sort ([, el1], [, el2]) => el1# - el2#
-        .map &.0
-      for tblIdx of tableauIdxs
-        // TODO: Choose wisely to aid in rearranging the tableau
-        for each _, hndIdx of @engine.board.hand
-          return true if @engine.moveHandToTableau hndIdx, tblIdx
-      return false
   ]
 
   canWin()
+    // @history = [@engine.toJSON()]
     :outer loop
       return true if @engine.hasWon()
-      for each attempt of @moveAttempts
+      for each attempt, i of @moveAttempts
         if attempt.call @
+          // Just this literally doubles the runtime
+          // @history.push @engine.toJSON()
           continue outer
       return false
 
