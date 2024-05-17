@@ -1,9 +1,13 @@
 // Use an AI to estimate how many games are winnable.
-// Current win rate: ~91%
+// Current win rate: ~94%
 
 { Value, type Card } from ./src/Card.civet
 Engine, { type EngineJSON } from ./src/Engine.civet
 type { ReadonlyBoard } from ./src/GameBoard.civet
+
+// Desired runtime, in ms
+// Actual runtime may vary
+runtime := 180000
 
 // Cartesian product
 operator x same(*) <T, U>(lhs: Iterable<T>, rhs: Iterable<U>)
@@ -15,14 +19,16 @@ operator x same(*) <T, U>(lhs: Iterable<T>, rhs: Iterable<U>)
 
 function main
   won .= 0
-  total := 10000
+  // Run 500 games and measure how long it takes. Then, extrapolate to run for 3 minutes
+  total .= 500
+  performance.mark 'start'
   for [0...total]
-    ai := new AI
-    if ai.canWin()
-      ++won 
-    // else
-    //   console.log JSON.stringify ai.history
-    //   return
+    ++won if new AI().canWin()
+  { duration } := performance.measure 'games', 'start'
+  addtlTotal := Math.max 0, Math.round (runtime - duration) * (total / duration)
+  total += addtlTotal
+  for [0...addtlTotal]
+    ++won if new AI().canWin()
   console.log `Win rate: ${100 * won / total}% (n = ${total})`
 
 // Make a function to rearrange the tableau in an attempt to expose the specified cards.
@@ -74,7 +80,9 @@ makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value
 
   for [pileIdx, goalIdx] of tableauPileIdxs
     :thisPile loop
-      return true if playableValues.has @engine.board.tableau[pileIdx].-1.value 
+      if playableValues.has @engine.board.tableau[pileIdx].-1.value
+        @setBacktrackingPoint() if @engine.points >= 3
+        return true
       
       newPileIdxs := [0...4].sort sortCB
       for moveStartIdx .= goalIdx + 1; moveStartIdx < @engine.board.tableau[pileIdx]#; ++moveStartIdx
@@ -190,7 +198,9 @@ class AI
     // Uncover a buried joker in the tableau, if applicable
     makeSearchFn => [Value.Joker]
     // Reveal a card
-    -> @engine.revealCard()
+    ->
+      @setBacktrackingPoint() if @engine.points >= 3
+      @engine.revealCard()
     // If there's a joker in the hand and at least 3 points have been scored, play that
     ->
       return false if @engine.points < 3
@@ -212,15 +222,26 @@ class AI
       return false
   ]
 
+  #backtrack = false
+
+  // Say that if making this move leads to failure, the AI is allowed to backtrack to here to try a different move.
+  // Overusing this can lead to recursion errors and/or exponential blowup in runtime.
+  setBacktrackingPoint()
+    #backtrack = true
+
   canWin()
-    // @history = [@engine.toJSON()]
     :outer loop
       return true if @engine.hasWon()
-      for each attempt, i of @moveAttempts
+      for each attempt of @moveAttempts
+        #backtrack = false
+        prevJSON := @engine.toJSON()
         if attempt.call @
-          // Just this literally doubles the runtime
-          // @history.push @engine.toJSON()
-          continue outer
+          if #backtrack
+            @history.push prevJSON
+            return true if @canWin()
+            @engine = Engine.fromJSON @history.pop()!
+          else
+            continue outer
       return false
 
 main()
