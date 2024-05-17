@@ -1,5 +1,5 @@
 // Use an AI to estimate how many games are winnable.
-// Current win rate: ~94%
+// Current win rate: ~99.7%
 
 { Value, type Card } from ./src/Card.civet
 Engine, { type EngineJSON } from ./src/Engine.civet
@@ -7,7 +7,7 @@ type { ReadonlyBoard } from ./src/GameBoard.civet
 
 // Desired runtime, in ms
 // Actual runtime may vary
-runtime := 180000
+runtime := 210000
 
 // Cartesian product
 operator x same(*) <T, U>(lhs: Iterable<T>, rhs: Iterable<U>)
@@ -19,7 +19,7 @@ operator x same(*) <T, U>(lhs: Iterable<T>, rhs: Iterable<U>)
 
 function main
   won .= 0
-  // Run 500 games and measure how long it takes. Then, extrapolate to run for 3 minutes
+  // Run 500 games and measure how long it takes. Then, extrapolate to run for the specified duration
   total .= 500
   performance.mark 'start'
   for [0...total]
@@ -81,7 +81,7 @@ makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value
   for [pileIdx, goalIdx] of tableauPileIdxs
     :thisPile loop
       if playableValues.has @engine.board.tableau[pileIdx].-1.value
-        @setBacktrackingPoint() if @engine.points >= 3
+        @setBacktrackingPoint()
         return true
       
       newPileIdxs := [0...4].sort sortCB
@@ -97,6 +97,9 @@ makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value
       break
 
   return false
+
+// The number of points at which the engine switches to its endgame behavior
+ptsThreshold := 1
 
 class AI
   engine = new Engine
@@ -160,10 +163,10 @@ class AI
       Value.King - foundation.desc.0#
       Value.King - foundation.desc.1#
     ]
-    // Unless 3 points have already been scored, if there's an available joker in the tableau, play it
+    // Unless it's the "endgame", if there's an available joker in the tableau, play it
     ->
-      // If there's only one point left to score, it may be useful to reserve the jokers 
-      return false unless @engine.points < 3
+      // If it's the endgame, it may be useful to reserve the jokers 
+      return false unless @engine.points < ptsThreshold
       for tblIdx of [0...4]
         continue unless @engine.board.tableau[tblIdx].-1?.value is Value.Joker
         // Play to the deepest foundation pile -- slightly increases win rate
@@ -186,9 +189,9 @@ class AI
         for hndIdx of handIdxs
           return true if @engine.moveHandToTableau hndIdx, tblIdx
       return false
-    // If there's a joker in the hand and less than 3 points have been scored, play that
+    // If there's a joker in the hand and not endgame, play that
     ->
-      return false if @engine.points >= 3
+      return false if @engine.points >= ptsThreshold
       idx := @engine.board.hand.findIndex .value is Value.Joker
       return false unless idx >= 0
       // Play to the deepest foundation pile -- increases win rate
@@ -199,20 +202,20 @@ class AI
     makeSearchFn => [Value.Joker]
     // Reveal a card
     ->
-      @setBacktrackingPoint() if @engine.points >= 3
+      @setBacktrackingPoint() if @engine.points >= ptsThreshold
       @engine.revealCard()
-    // If there's a joker in the hand and at least 3 points have been scored, play that
+    // If there's a joker in the hand and this is "endgame", play that
     ->
-      return false if @engine.points < 3
+      return false if @engine.points < ptsThreshold
       idx := @engine.board.hand.findIndex .value is Value.Joker
       return false unless idx >= 0
       // Play to the deepest foundation pile -- increases win rate
       founds := (['asc', 'desc'] as const x [0..1])
         .sort (a, b) => @engine.board.foundation[b.0][b.1]# - @engine.board.foundation[a.0][a.1]#
       @engine.moveHandToFoundation idx, ...founds.0
-    // If 3 points have already been scored and there's an available joker in the tableau, play it
+    // If this is endgame and there's an available joker in the tableau, play it
     ->
-      return false if @engine.points < 3
+      return false if @engine.points < ptsThreshold
       for tblIdx of [0...4]
         continue unless @engine.board.tableau[tblIdx].-1?.value is Value.Joker
         // Play to the shallowest foundation pile -- slightly increases win rate
