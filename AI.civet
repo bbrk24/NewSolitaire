@@ -39,6 +39,7 @@ makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value
   // find the indices of the pile with buried playable values
   tableauPileIdxs := tableau
     // Map to [index in tableau, pile itself, index of value in pile]
+    // @ts-ignore findLastIndex doesn't exist in the browser versions I'm targeting, but does exist in Node 20
     .map (el, i) => [i, el, el.findLastIndex playableValues.has (.: Card).value] as [number, readonly Card[], number]
     // Remove those where the value doesn't exist
     .filter &.2 >= 0
