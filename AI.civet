@@ -247,5 +247,6 @@ class AI
           else
             continue outer
       return false
+    ;
 
 main()

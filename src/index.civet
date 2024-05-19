@@ -14,9 +14,9 @@ Engine, { type EngineJSON } from ./Engine.civet
 { Card } from ./Card.civet
 
 CardLocation ::=
-  | ['hand', 0 | 1 | 2]
-  | ['tableau', 0 | 1 | 2 | 3, number]
-  | ['foundation', 'asc' | 'desc', 0 | 1]
+  | ['hand', number]
+  | ['tableau', number, number]
+  | ['foundation', 'asc' | 'desc', number]
   | ['revealed']
 
 history: EngineJSON[] .= []
@@ -24,18 +24,18 @@ history: EngineJSON[] .= []
 wins .= if str? := localStorage.getItem 'winCount' then +str else 0
 losses .= if str? := localStorage.getItem 'lossCount' then +str else 0
 
-findLocation := (el: HTMLElement): CardLocation ->
+findLocation := (el: Element): CardLocation ->
   switch el.parentNode
     ^hand
-      ['hand', Array::indexOf.call(hand.children, el) as any]
+      ['hand', Array::indexOf.call hand.children, el]
     { parentNode: { parentNode: ^foundation, id }, dataset: { idx } }
-      ['foundation', id as 'asc' | 'desc', Number(idx) as 0 | 1] 
+      ['foundation', id as 'asc' | 'desc', Number idx]
     { parentNode: ^tableau, dataset: { idx } }
-      ['tableau', Number(idx) as any, Array::indexOf.call el.parentNode!.children, el]
+      ['tableau', Number(idx), Array::indexOf.call el.parentNode!.children, el]
     else
       ['revealed']
 
-let highlightedCard?: HTMLElement
+let highlightedCard?: Element
 unHighlight := =>
   highlightedCard?.classList.remove 'selected'
   highlightedCard = undefined
@@ -57,7 +57,8 @@ moveTo := (dest: CardLocation): void =>
           unHighlight()
           updateRender()
     ['revealed', 'foundation']
-      if engine.moveRevealedToFoundation dest.1 as 'asc' | 'desc', dest.2 as number
+      // Gotta love the complete and utter lack of narrowing
+      if engine.moveRevealedToFoundation dest.1 as 'asc' | 'desc', dest.2!
         unHighlight()
         updateRender()
     ['hand', 'tableau']
@@ -65,14 +66,14 @@ moveTo := (dest: CardLocation): void =>
         unHighlight()
         updateRender()
     ['hand', 'foundation']
-      if engine.moveHandToFoundation src.1 as number, dest.1 as 'asc' | 'desc', dest.2 as number
+      if engine.moveHandToFoundation src.1 as number, dest.1 as 'asc' | 'desc', dest.2!
         unHighlight()
         updateRender()
     ['tableau', 'foundation']
       if src.2! >= 0
         fail .= false
         for i .= engine.board.tableau[src.1 as number]# - 1; i >= src.2!; --i
-          unless engine.moveTableauToFoundation src.1 as number, dest.1 as 'asc' | 'desc', dest.2 as number
+          unless engine.moveTableauToFoundation src.1 as number, dest.1 as 'asc' | 'desc', dest.2!
             fail = true
             break
         if fail
@@ -85,7 +86,7 @@ moveTo := (dest: CardLocation): void =>
       if src.1 is dest.1
         // re-selecting the same column
         unHighlight()
-      else if engine.moveTableauToTableau src.1 as number, src.2 as number, dest.1 as number
+      else if engine.moveTableauToTableau src.1 as number, src.2!, dest.1 as number
         unHighlight()
         updateRender()
 
@@ -155,16 +156,16 @@ document.getElementById('undo')!
       updateRender false
 
 for each child, i of asc.children
-  child.addEventListener 'click', => moveTo ['foundation', 'asc', i as 0 | 1]
+  child.addEventListener 'click', => moveTo ['foundation', 'asc', i]
 for each child, i of desc.children
-  child.addEventListener 'click', => moveTo ['foundation', 'desc', i as 0 | 1]
+  child.addEventListener 'click', => moveTo ['foundation', 'desc', i]
 for each child, i of tableau.children
-  child.addEventListener 'click', => moveTo ['tableau', i as any, -1]
+  child.addEventListener 'click', => moveTo ['tableau', i, -1]
 deck.addEventListener 'click', =>
   if not highlightedCard? and engine.revealCard()
     updateRender()
     if card? := deck.querySelector '.card'
-      highlightedCard = card as HTMLElement
+      highlightedCard = card
       card.classList.add 'selected'
 
 history = JSON.parse localStorage.getItem('gameHistory') ?? '[]'
