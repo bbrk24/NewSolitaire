@@ -1,5 +1,5 @@
 // Use an AI to estimate how many games are winnable.
-// Current win rate: ~99.7%
+// Current win rate: ~99.8%
 
 { Value, type Card } from ./src/Card.civet
 Engine, { type EngineJSON } from ./src/Engine.civet
@@ -109,12 +109,13 @@ class AI
 
   // How many moves it takes before the given value can be played
   utilityDist(v: Value)
-    { foundation } := @engine.board
-    v is Value.Joker ? 0 : Math.min
+    { foundation, hand } := @engine.board
+    v is Value.Joker ? 0 : (Math.min
       (v - foundation.asc.0# - 1) %% 13
       (v - foundation.asc.1# - 1) %% 13
       (13 - v - foundation.desc.0#) %% 13
       (13 - v - foundation.desc.1#) %% 13
+    + 13 * +hand.some .value is v)
 
   // Each entry in this array represents one type of move to attempt. The AI works by repeatedly performing the first
   // successful move until the game is won or no more moves can be performed.
@@ -135,7 +136,7 @@ class AI
         .filter ([, el]) => el# > 0
         .sort ([, el1], [, el2]) =>
           // By depth and by future utility of the card that will be revealed
-          if el1# < 2 or el2# < 2 or (el1# !== el2# and @engine.points < 3)
+          if el1# < 2 or el2# < 2 or (el1# !== el2# and @engine.points < ptsThreshold)
             el2# - el1#
           else
             utilDiff := @utilityDist(el2.-2.value) - @utilityDist(el1.-2.value)

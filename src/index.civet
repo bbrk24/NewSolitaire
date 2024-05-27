@@ -30,13 +30,13 @@ findLocation := (el: Element): CardLocation ->
       ['hand', Array::indexOf.call hand.children, el]
     { parentNode: { parentNode: ^foundation, id }, dataset: { idx } }
       ['foundation', id as 'asc' | 'desc', Number idx]
-    { parentNode: ^tableau, dataset: { idx } }
-      ['tableau', Number(idx), Array::indexOf.call el.parentNode!.children, el]
+    { parentNode: ^tableau, dataset: { idx }, children }
+      ['tableau', Number(idx), Array::indexOf.call children, el]
     else
       ['revealed']
 
 let highlightedCard?: Element
-unHighlight := =>
+unHighlight := :void =>
   highlightedCard?.classList.remove 'selected'
   highlightedCard = undefined
 
