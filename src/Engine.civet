@@ -166,7 +166,7 @@ export default class Engine
 
   toString()
     padCard := (c: Card?) => if c? then `[${c.toString().padEnd(10, ' ')}]` else '            '
-    padNum := (n: number) => n.toString().padStart(2, '0')
+    padNum := (&: number).toString().padStart 2, '0'
 
     tableauArr := for i of [0 ... Math.max ...#board.tableau.map &#]
       #board.tableau

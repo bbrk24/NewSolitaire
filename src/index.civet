@@ -110,10 +110,10 @@ updateRender := (addHistory = true, updateStorage = true): void =>
   points.textContent = String engine.points
   for each child, i of asc.children
     child.innerHTML = ''
-    child.appendChild card.html if card? := engine.board.foundation.asc[i].at -1
+    child.appendChild card.html if card? := engine.board.foundation.asc[i].-1
   for each child, i of desc.children
     child.innerHTML = ''
-    child.appendChild card.html if card? := engine.board.foundation.desc[i].at -1
+    child.appendChild card.html if card? := engine.board.foundation.desc[i].-1
   for each child, i of tableau.children
     child.innerHTML = ''
     child.append ...engine.board.tableau[i].map .html

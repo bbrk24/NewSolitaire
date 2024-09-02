@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@danielx/civet": "~0.7.9",
+    "@danielx/civet": "~0.7.25",
     "typescript": "~5.4.5"
   },
   "devDependencies": {

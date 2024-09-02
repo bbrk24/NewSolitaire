@@ -49,7 +49,7 @@ export class Card <: CardLike
   toString()
     if @value is Value.Joker
       return '&starf;'
-    (switch @value
+    switch @value
       when Value.Ace
         'A'
       when Value.King
@@ -60,7 +60,7 @@ export class Card <: CardLike
         'J'
       else
         @value.toString()
-    ) + @suit
+    |> (+ @suit)
 
 export genDeck := =>
   generator := :Generator<Card, void> ->
