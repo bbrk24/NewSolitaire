@@ -15,7 +15,7 @@ export interface CardLike
   readonly value: Value
 
 export class Card <: CardLike
-  @#htmlMap = new Map<Value, Map<Suit, HTMLElement>>
+  @#htmlMap = new Map<Value, Map Suit, HTMLElement>
     for value of [Value.Joker] ++ [Value.Ace..Value.King]
       [value, new Map] as tuple
 
@@ -60,11 +60,11 @@ export class Card <: CardLike
         'J'
       else
         @value.toString()
-    |> (+ @suit)
+    + @suit
 
 export genDeck := =>
-  generator := :Generator<Card, void> ->
-    for _, suit in Suit as Record<string, Suit>
+  generator := ->
+    for _, suit in Suit as Record string, Suit
       for value of [Value.Ace..Value.King]
         yield new Card value, suit
     yield new Card Value.Joker, Suit.Hearts

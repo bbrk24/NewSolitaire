@@ -11,28 +11,27 @@ runtime := 210000
 
 // Cartesian product
 operator x same(*) <T, U>(lhs: Iterable<T>, rhs: Iterable<U>)
-  Array.from (:Generator<[T, U], void> ->
+  Array.from (->
     for a of lhs
-      for b of rhs
-        yield [a, b]
+      for* b of rhs
+        [a, b] as tuple
   )()
 
 function main
-  won .= 0
   // Run 500 games and measure how long it takes. Then, extrapolate to run for the specified duration
   total .= 500
   performance.mark 'start'
-  for [0...total]
-    ++won if new AI().canWin()
+  won .= for count [0..<total]
+    new AI().canWin()
   { duration } := performance.measure 'games', 'start'
   addtlTotal := Math.max 0, Math.round (runtime - duration) * (total / duration)
   total += addtlTotal
-  for [0...addtlTotal]
-    ++won if new AI().canWin()
+  won += for count [0..<addtlTotal]
+    new AI().canWin()
   console.log `Win rate: ${100 * won / total}% (n = ${total})`
 
 // Make a function to rearrange the tableau in an attempt to expose the specified cards.
-makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable<Value>) => (@: AI) ->
+makeSearchFn := (validCards: (fnd: ReadonlyBoard.'foundation') => Iterable Value) => (@: AI) ->
   { foundation, tableau } := @engine.board
   playableValues := new Set<Value> validCards foundation
   alreadyOnTop .= false
@@ -122,10 +121,9 @@ class AI
   moveAttempts: ((@: AI) => boolean)[] = [
     // If there's a revealed card, try to move it to the foundation
     ->
-      for dir of ['asc', 'desc'] as const
-        for pile of [0..1]
-          return true if @engine.moveRevealedToFoundation dir, pile
-      return false
+      for some dir of ['asc', 'desc'] as const
+        for some pile of [0..1]
+          @engine.moveRevealedToFoundation dir, pile
     // If there's a revealed card that can't be moved to the foundation, play it on the tableau (only legal move)
     -> @engine.moveRevealedToTableau()
     // If there's a non-joker card that can be played from the tableau, do so
@@ -151,20 +149,18 @@ class AI
       return false
     // If there's a non-joker card that can be played from the hand, do so
     ->
-      for each { value }, i of @engine.board.hand
+      for some each { value }, i of @engine.board.hand
         continue if value is Value.Joker
         // For non-joker cards, it doesn't matter where they're placed, all valid spots have the same effect
-        for dir of ['asc', 'desc'] as const
-          for fndPile of [0..1]
-            return true if @engine.moveHandToFoundation i, dir, fndPile
-      return false
+        for some dir of ['asc', 'desc'] as const
+          for some fndPile of [0..1]
+            @engine.moveHandToFoundation i, dir, fndPile
     // Rearrange the tableau to reveal a playable non-joker value
-    makeSearchFn (foundation) => [
-      Value.Ace + foundation.asc.0#
-      Value.Ace + foundation.asc.1#
-      Value.King - foundation.desc.0#
-      Value.King - foundation.desc.1#
-    ]
+    makeSearchFn (foundation) =>
+      . Value.Ace + foundation.asc.0#
+      . Value.Ace + foundation.asc.1#
+      . Value.King - foundation.desc.0#
+      . Value.King - foundation.desc.1#
     // Unless it's the "endgame", if there's an available joker in the tableau, play it
     ->
       // If it's the endgame, it may be useful to reserve the jokers 
@@ -187,10 +183,9 @@ class AI
         .map (el, i) => [i, el] as tuple
         .sort ([, el1], [, el2]) => el1.value - el2.value
         .map &.0
-      for tblIdx of tableauIdxs
-        for hndIdx of handIdxs
-          return true if @engine.moveHandToTableau hndIdx, tblIdx
-      return false
+      for some tblIdx of tableauIdxs
+        for some hndIdx of handIdxs
+          @engine.moveHandToTableau hndIdx, tblIdx
     // If there's a joker in the hand and not endgame, play that
     ->
       return false if @engine.points >= ptsThreshold

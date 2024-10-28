@@ -1,10 +1,10 @@
 {
   "dependencies": {
-    "@danielx/civet": "~0.7.25",
+    "@danielx/civet": "~0.8.9",
     "typescript": "~5.4.5"
   },
   "devDependencies": {
-    "express": "^4.19.2"
+    "express": "^5.0.1"
   },
   "scripts": {
     "start": "node -e \"(e => e().use(e.static('dist')).listen(3000))(require('express'))\""

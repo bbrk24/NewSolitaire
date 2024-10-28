@@ -127,7 +127,7 @@ export default class Engine
           Math.abs(fromPile[i].value - fromPile[i - diff].value) is diff
 
     // Probably not the most efficient way to compute this, but good enough
-    canMove := false is not in for let i = 1; i + cardIdx < fromPile#; ++i
+    canMove := for every i of [1 ..< fromPile# - cardIdx]
       (and)
         // check up to 3 apart in case there are mid-run jokers
         compare cardIdx + i, 1
